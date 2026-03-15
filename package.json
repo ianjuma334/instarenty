@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "nodemon app",
+    "start": "node app.js",
     "seed:amenities": "node seed/amenity.seed.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
