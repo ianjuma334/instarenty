@@ -9,7 +9,7 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    sqlite3 \
+    sqlite \
     && rm -rf /var/cache/apk/*
 
 # Copy package files
