@@ -1,0 +1,99 @@
+require('dotenv').config();
+const mongoose = require('mongoose');
+const express = require('express');
+const { ApolloServer } = require('@apollo/server');
+const { expressMiddleware } = require('@apollo/server/express4');
+const { makeExecutableSchema } = require('@graphql-tools/schema');
+const { ApolloServerPluginDrainHttpServer } = require('@apollo/server/plugin/drainHttpServer');
+const { WebSocketServer } = require('ws');
+const { useServer } = require('graphql-ws/use/ws');
+const http = require('http');
+const jwt = require('jsonwebtoken');
+const os = require('os');
+const socketIo = require('socket.io');
+
+const { setSocketIo } = require('./schema/resolvers/postsResolvers/postsResolvers');
+const typeDefs = require('./schema/typeDefs');
+const resolvers = require('./schema/resolvers/resolvers');
+
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+
+const initializeServer = async () => {
+  // Create executable schema
+  const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+  const app = express();
+  const httpServer = http.createServer(app);
+
+  // Set up Apollo Server
+  const apolloServer = new ApolloServer({
+    schema,
+    plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
+    context: async ({ req }) => {
+      const token = req.headers.authorization ? req.headers.authorization.split(' ')[1] : null;
+      let user = null;
+      if (token) {
+        try {
+          user = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (error) {
+          console.log("Invalid token:", error.message);
+        }
+      }
+      return { user };
+    },
+    introspection: process.env.NODE_ENV !== 'production',
+  });
+
+  await apolloServer.start();
+
+  // Use Express as middleware for Apollo Server
+  app.use(
+    '/graphql',
+    express.json(),
+    expressMiddleware(apolloServer)
+  );
+
+  // Set up socket.io server
+  const io = socketIo(httpServer, {
+    cors: {
+      origin: "*", // Update to restrict origins if necessary
+      methods: ["GET", "POST"],
+    }
+  });
+
+  // Pass socket.io instance to resolvers
+  setSocketIo(io);
+
+  // Start the HTTP server
+  await new Promise((resolve) => httpServer.listen(PORT, HOST, resolve));
+
+  console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
+  console.log(`Socket.io ready at ws://localhost:${PORT}`);
+};
+
+initializeServer();
+
+const mongoUrl = process.env.MONGODB_URI;
+mongoose.connect(mongoUrl).then(() => {
+  console.log("Database Connected");
+}).catch((e) => {
+  console.error("Failed to connect to MongoDB", e);
+});
+
+// Function to get the local IP address
+function getLocalIp() {
+  const networkInterfaces = os.networkInterfaces();
+  for (const interfaceName in networkInterfaces) {
+    for (const iface of networkInterfaces[interfaceName]) {
+      if (!iface.internal && iface.family === 'IPv4') {
+        return iface.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
+
+const localIp = getLocalIp();
+console.log(`Local: http://localhost:${PORT}`);
+console.log(`Network: http://${localIp}:${PORT}`);

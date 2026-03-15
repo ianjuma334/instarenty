@@ -1,0 +1,8 @@
+{
+    "activationFee" : 1000,
+    "referralBonus" : 100,
+    "bookingFees" : 50,
+    "postApprovalBonus" : 50,
+    "postConfirmationBonus" : 150
+    
+}
